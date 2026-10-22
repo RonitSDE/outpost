@@ -84,3 +84,4 @@ Agents are rule-based policies, not LLM traders. The living island does not writ
 Replay integrity proves that saved server receipts form a consistent hash chain; the server can rewrite its own history. It is not trustless gameplay execution, blockchain anchoring or independent anti-cheat proof. Ranked guest limits are not Sybil-resistant, so no money is awarded.
 
 The code is a deployable MVP, not an audited financial product. Human playtesting, visual/browser QA, real Robinhood/o1 smoke tests, and operational security review are required before public paid launch. No token-price or virality guarantee is made.
+# outpost

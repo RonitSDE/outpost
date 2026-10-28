@@ -1,6 +1,6 @@
 {
-  "name": "outpost-rivals",
-  "version": "1.4.1",
+  "name": "hood-rivals",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -17,25 +17,23 @@
     "contracts:deploy": "node --import tsx scripts/deploy.ts",
     "launch:prepare": "node --import tsx scripts/launch.ts",
     "preflight": "node --import tsx scripts/preflight.ts",
+    "testnet:smoke": "node --import tsx scripts/testnet-smoke.ts",
     "backup": "node --import tsx scripts/backup.ts",
     "economics": "node --import tsx scripts/economics.ts"
   },
   "dependencies": {
     "@openzeppelin/contracts": "5.0.2",
-    "@walletconnect/ethereum-provider": "2.26.0",
     "ethers": "^6.17.0",
     "express": "^5.3.0",
-    "qrcode": "1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "three": "^0.186.1",
-    "zod": "^4.6.7",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
-    "@types/qrcode": "1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",

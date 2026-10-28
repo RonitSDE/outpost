@@ -25,6 +25,9 @@ test("production origin, session cookie, CSRF, profile input and logout boundari
     assert.match(cookieHeader, /SameSite=Lax/i);
     const cookie = cookieHeader.split(";")[0];
     const { csrf } = await signed.json();
+    const bootstrap = await request("/api/bootstrap", undefined, {cookie});
+    assert.equal(bootstrap.headers.get("cache-control"),"no-store");
+    assert.equal(bootstrap.headers.get("strict-transport-security"),"max-age=31536000");
     const profile = { name: "<img src=x onerror=alert(1)>", faction: 0, stance: "balanced" };
     assert.equal((await fetch(base + "/api/profile", { method: "PATCH", headers: {
       "content-type": "application/json", origin: "https://outpost.example", cookie,

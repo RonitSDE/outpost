@@ -33,15 +33,15 @@ const prepared = await call("/launches/prepare", {
   market: "standard",
   quote_address: "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
   token: {
-    name: "Outpost Rivals",
+    name: "Hood Rivals",
     symbol: "RIVAL",
     description:
-      "Cosmetic utility for Outpost Rivals, a compact agent-led strategy game. No yield or price promise.",
+      "Cosmetic utility for Hood Rivals, a compact agent-led strategy game. No yield or price promise.",
     website,
     editable_metadata: false,
     extra_metadata: [],
     image_base64: readFileSync(
-      process.env.TOKEN_IMAGE || "public/token.png",
+      process.env.TOKEN_IMAGE || "public/hood-rivals-logo.png",
     ).toString("base64"),
     image_type: "image/png",
   },

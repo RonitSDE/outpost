@@ -1,6 +1,7 @@
 import { config } from "../server/config";
 import { JsonRpcProvider, Contract, Wallet, ZeroAddress, id } from "ethers";
 import { STORE_ABI, ERC20_ABI } from "../shared/checkout";
+if (!config.signer) throw Error("QUOTE_SIGNER_PRIVATE_KEY is required to verify checkout readiness");
 const p = new JsonRpcProvider(config.rpc);
 const chain = Number((await p.getNetwork()).chainId);
 if (chain !== config.chainId) throw Error("Wrong network");

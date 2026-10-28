@@ -419,12 +419,21 @@ export function World({ game, cosmetic, selected, reachable, onSelect, onHover }
   return (
     <div className="world" ref={host}>
       {fallback ? (
-        <div className="world-fallback" role="group" aria-label="Text map, use buttons to inspect a hex">
-          {game.tiles.map((t: any) => (
-            <button key={t.id} className={t.id === selected ? "active" : ""} onClick={() => callback.current?.(t.id)}>
-              {t.id} · {t.kind}
-            </button>
-          ))}
+        <div className="world-fallback" role="group" aria-label="Tactical hex map, select a tile to inspect it">
+          <div className="fallback-map-note" aria-hidden="true">HEX MAP <span>·</span> SELECT A TILE</div>
+          {game.tiles.map((t: any) => {
+            const sigil: Record<string,string> = {base:"♜",flag:"◆",cache:"✦",forest:"♠",rock:"▰",grass:"·"};
+            const faction = t.owner >= 0 ? game.factions[t.owner] : null;
+            return <button
+              key={t.id}
+              type="button"
+              className={`fallback-hex terrain-${t.kind}${t.id === selected ? " active" : ""}${reachable?.includes(t.id) ? " reachable" : ""}`}
+              style={{left:`calc(50% + ${(t.q+t.r/2)*12}%)`,top:`calc(50% + ${t.r*12}%)`,"--owner":faction ? FACTIONS[t.owner].color : "#6d8066"} as React.CSSProperties}
+              aria-label={`${t.kind} at ${t.id}${faction ? `, held by ${faction.name}` : ""}${t.id === selected ? ", selected" : ""}`}
+              aria-pressed={t.id === selected}
+              onClick={() => callback.current?.(t.id)}
+            ><span className="fallback-hex-sigil" aria-hidden="true">{sigil[t.kind]}</span><small aria-hidden="true">{t.kind}</small>{faction&&<i aria-hidden="true" />}</button>;
+          })}
         </div>
       ) : (
         <>

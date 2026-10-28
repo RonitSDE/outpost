@@ -1,4 +1,4 @@
-# Outpost Rivals — beta launch
+# Hood Rivals — beta launch
 
 **Small world. Unfinished business.** Watch rival captains, learn the frontier, and settle a six-round contest of territory, pacts and betrayal. Free to play. Optional wallet identity. Cosmetics only.
 

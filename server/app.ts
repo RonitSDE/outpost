@@ -1,6 +1,7 @@
 import express from "express";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import { verifyMessage, getAddress } from "ethers";
 import { z } from "zod";
 import { database, tx } from "./db";
@@ -18,6 +19,7 @@ import {
   type GameState,
   type Order,
 } from "../shared/game";
+import { matchRecap } from "../shared/experience";
 import { SHOP_ITEMS, ECONOMY } from "../shared/economy";
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 const uid = () => randomBytes(24).toString("hex");
@@ -40,13 +42,16 @@ export function createApp(c: Config = config) {
   app.use(express.json({ limit: "32kb" }));
   const rate = new Map<string, { n: number; t: number }>();
   app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) res.set('Cache-Control','no-store');
+    if (c.production) res.set('Strict-Transport-Security','max-age=31536000');
+    res.set('Permissions-Policy','camera=(), microphone=(), geolocation=()');
     const embeddedWorld = req.path === "/observatory.html";
     res.set({
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "same-origin",
       "X-Frame-Options": embeddedWorld ? "SAMEORIGIN" : "DENY",
       "Content-Security-Policy":
-        `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' https: wss://relay.walletconnect.com wss://relay.walletconnect.org; font-src 'self' https://fonts.gstatic.com; frame-src 'self'; frame-ancestors ${embeddedWorld ? "'self'" : "'none'"}; object-src 'none'; base-uri 'self'`,
+        `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' https:; font-src 'self' https://fonts.gstatic.com; frame-src 'self'; frame-ancestors ${embeddedWorld ? "'self'" : "'none'"}; object-src 'none'; base-uri 'self'`,
     });
     next();
   });
@@ -107,6 +112,10 @@ export function createApp(c: Config = config) {
     }
     req.auth = session(req);
     if (req.path === "/session" && req.method === "POST") return next();
+    if (!req.auth && req.method === "GET" && (req.path === "/leaderboard" || /^\/replays\/[0-9a-f-]{36}$/i.test(req.path))) {
+      if(!allowed('public:'+req.ip,120)) return res.status(429).set('Retry-After','60').json({error:'Too many requests. Please try again.'});
+      return next();
+    }
     if (!req.auth)
       return res.status(401).json({ error: "Start a guest session" });
     if (
@@ -151,6 +160,7 @@ export function createApp(c: Config = config) {
         memory: JSON.parse(u.memory),
         rivalMemory: JSON.parse(u.rival_memory || "{}"),
       },
+      campaign: db.prepare("SELECT match_id,created,won,score,moment FROM campaign WHERE user_id=? ORDER BY created DESC LIMIT 8").all(u.id),
       inventory: db
         .prepare("SELECT sku FROM inventory WHERE user_id=?")
         .all(u.id)
@@ -162,7 +172,7 @@ export function createApp(c: Config = config) {
         .all(u.id),
       market: await market(db, c),
       shop: { ...store.status(), items: SHOP_ITEMS, rivalEnabled: !!c.tokenUnitsPerDollar },
-      release: { version: "1.4.1", build: process.env.BUILD_SHA || "development", walletConnectProjectId: process.env.WALLETCONNECT_PROJECT_ID || "" },
+      release: { version: "1.9.0", build: process.env.BUILD_SHA || "development" },
       economy: ECONOMY,
       chain: {
         id: c.chainId,
@@ -224,7 +234,7 @@ export function createApp(c: Config = config) {
     const address = getAddress(z.string().parse(req.body.address));
     const nonce = uid(),
       expires = Date.now() + 300000;
-    const message = `${new URL(c.origin).host} requests a wallet link for Outpost Rivals.\n\nAddress: ${address}\nChain ID: ${c.chainId}\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}\nExpires: ${new Date(expires).toISOString()}\n\nThis signature only links your account. It authorizes no transfer.`;
+    const message = `${new URL(c.origin).host} requests a wallet link for Hood Rivals.\n\nAddress: ${address}\nChain ID: ${c.chainId}\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}\nExpires: ${new Date(expires).toISOString()}\n\nThis signature only links your account. It authorizes no transfer.`;
     db.prepare("INSERT INTO nonces VALUES (?,?,?,?,?)").run(
       nonce,
       user(req).id,
@@ -293,6 +303,7 @@ export function createApp(c: Config = config) {
       ).run(50 + f.score * 10, won, row.mode==='weekly'
         ? (db.prepare('SELECT memory FROM users WHERE id=?').get(p.user_id) as any).memory
         : JSON.stringify(f.memory), p.user_id);
+      db.prepare("INSERT OR IGNORE INTO campaign(user_id,match_id,created,won,score,moment) VALUES (?,?,?,?,?,?)").run(p.user_id,row.id,Date.now(),won,f.score,matchRecap(s.events,p.slot).moment?.text || "A quiet expedition. Your result is recorded.");
       if(row.mode==='solo'){
         const remembered=JSON.parse((db.prepare('SELECT rival_memory FROM users WHERE id=?').get(p.user_id) as any).rival_memory || '{}');
         for(const rival of s.factions)if(rival.id!==p.slot)remembered[rival.id]=rival.memory[String(p.slot)]||0;
@@ -341,6 +352,8 @@ export function createApp(c: Config = config) {
       .object({ mode: z.enum(["solo", "weekly", "room", "training"]).default("solo") })
       .parse(req.body);
     const u = user(req);
+    if (b.mode === "weekly" && (!u.wallet || !u.onboarded))
+      return res.status(403).json({error:"Link a wallet and create your captain to enter ranked play"});
     if (u.wallet && !u.onboarded)
       return res.status(409).json({error:"Create your captain before entering a match"});
     const active: any = db
@@ -353,6 +366,9 @@ export function createApp(c: Config = config) {
       day = new Date().toISOString().slice(0, 10);
     const snapshot = await market(db, c);
     const out = tx(db, () => {
+      // Recheck after the asynchronous market lookup, inside the write transaction.
+      const resumed = db.prepare("SELECT m.id FROM matches m JOIN players p ON p.match_id=m.id WHERE p.user_id=? AND m.status IN ('active','lobby') LIMIT 1").get(u.id) as any;
+      if (resumed) return {id:resumed.id,resumed:true};
       if (
         b.mode === "weekly" &&
         db
@@ -549,14 +565,25 @@ export function createApp(c: Config = config) {
       })),
     });
   });
-  app.get("/api/leaderboard", (_, res) => {
-    res.json(
-      db
-        .prepare(
-          "SELECT u.name,u.wallet,MAX(r.score) AS score,COUNT(*) AS attempts FROM results r JOIN users u ON u.id=r.user_id JOIN matches m ON m.id=r.match_id WHERE m.mode='weekly' AND r.created>? GROUP BY u.id ORDER BY score DESC LIMIT 30",
-        )
-        .all(Date.now() - 7 * 86400000),
-    );
+  app.get("/api/leaderboard", (req: any, res) => {
+    const since = Date.now() - 7 * 86400000;
+    const source = `WITH eligible AS (
+      SELECT r.user_id,r.match_id,r.score,r.won,r.created,
+        ROW_NUMBER() OVER (PARTITION BY r.user_id ORDER BY r.score DESC,r.won DESC,r.created ASC,r.match_id ASC) AS pick,
+        COUNT(*) OVER (PARTITION BY r.user_id) AS attempts,
+        SUM(r.won) OVER (PARTITION BY r.user_id) AS victories
+      FROM results r JOIN matches m ON m.id=r.match_id JOIN users u ON u.id=r.user_id
+      WHERE m.mode='weekly' AND m.status='finished' AND r.created>? AND u.wallet IS NOT NULL AND u.onboarded=1
+    ), standings AS (
+      SELECT u.id,u.name,e.match_id,e.created,e.score,e.attempts,e.victories,
+        ROW_NUMBER() OVER (ORDER BY e.score DESC,e.won DESC,e.created ASC,u.id ASC) AS rank
+      FROM eligible e JOIN users u ON u.id=e.user_id WHERE e.pick=1
+    )`;
+    const shown = db.prepare(`${source} SELECT rank,id,name,match_id AS matchId,created,score,attempts,victories FROM standings WHERE rank<=30 OR id=? ORDER BY rank`).all(since, req.auth?.user_id || '') as any[];
+    const total = (db.prepare(`${source} SELECT COUNT(*) AS n FROM standings`).get(since) as any).n as number;
+    res.json({entries:shown.filter(row=>row.rank<=30).map(({id,...rest})=>rest),
+      me:shown.find(row=>row.id===req.auth?.user_id) || null,total,since,
+      verification:'Rankings are computed from finished server-owned matches. Replays have a server hash chain; they are not independent or onchain proof.'});
   });
   app.post("/api/shop/orders", async (req: any, res) => {
     res.json(
@@ -573,6 +600,14 @@ export function createApp(c: Config = config) {
     ),
   );
   app.use(express.static(resolve("dist"), { index: false }));
+  app.get('/rankings', (_req,res)=>{
+    const html=readFileSync(resolve('dist/index.html'),'utf8')
+      .replace('<title>Hood Rivals — A small world. A long memory.</title>','<title>Hood Rivals — Live Ranked Standings</title>')
+      .replace('<meta property="og:title" content="Hood Rivals — A small world. A long memory." />','<meta property="og:title" content="Hood Rivals — Live Ranked Standings" />')
+      .replace('<meta property="og:description" content="Lead your captain through a living pixel frontier. Free to play on Robinhood Chain testnet." />','<meta property="og:description" content="Seven-day rankings from completed matches. Explore the board and open each server replay." />')
+      .replace('<meta property="og:image" content="/hood-rivals-logo.png" />',`<meta property="og:image" content="${c.origin}/hood-rivals-logo.png" /><meta property="og:url" content="${c.origin}/rankings" /><meta name="twitter:card" content="summary_large_image" />`);
+    res.type('html').send(html);
+  });
   app.get("/{*path}", (req, res) => {
     if (req.path.startsWith("/api/"))
       return res.status(404).json({ error: "Unknown endpoint" });

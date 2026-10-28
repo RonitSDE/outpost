@@ -47,6 +47,8 @@ test('practice waits without a timer, earns nothing, can be left; rival memory r
     assert.equal(state.factions[1].memory['0'],-2);assert.equal(state.factions[2].memory['0'],1);
     assert.equal((await call(`/matches/${solo}/leave`,{})).status,403);
     runtime.db.prepare("UPDATE matches SET status='finished' WHERE id=?").run(solo);
+    runtime.db.prepare("UPDATE users SET wallet=?,onboarded=1 WHERE id=?")
+      .run('0x0000000000000000000000000000000000000001',before.profile.id);
     const ranked=(await call('/matches',{mode:'weekly'})).data.id;
     let rankedState=(await call('/matches/'+ranked)).data;
     while(rankedState.status==='active'){
@@ -56,4 +58,38 @@ test('practice waits without a timer, earns nothing, can be left; rival memory r
     assert.deepEqual((await call('/bootstrap')).data.profile.memory,{'1':-1});
     assert.deepEqual((await call('/bootstrap')).data.profile.rivalMemory,{'1':-2,'2':1});
   }finally{await runtime.close();await new Promise<void>(r=>server.close(()=>r()))}
+});
+
+test('concurrent starts resume one match; campaign results are idempotent and private',async()=>{
+  const runtime=createApp({...config,db:':memory:',production:false,origin:'http://test',roundMs:1000});
+  const server=runtime.app.listen(0);await new Promise<void>(r=>server.once('listening',r));
+  const base=`http://127.0.0.1:${(server.address() as any).port}/api`;
+  async function client(){
+    const response=await fetch(base+'/session',{method:'POST',headers:{origin:'http://test','content-type':'application/json'},body:'{}'});
+    const cookie=response.headers.get('set-cookie')!.split(';')[0],{csrf}=await response.json();
+    return async(path:string,body?:any)=>{const r=await fetch(base+path,{method:body?'POST':'GET',headers:{cookie,origin:'http://test','content-type':'application/json','x-csrf-token':csrf},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json()}};
+  }
+  try{
+    const call=await client(),other=await client();
+    const starts=await Promise.all(Array.from({length:5},()=>call('/matches',{mode:'solo'})));
+    const id=starts[0].data.id;
+    assert.ok(starts.every(x=>x.status===200&&x.data.id===id));
+    assert.equal((runtime.db.prepare('SELECT COUNT(*) n FROM matches').get() as any).n,1);
+    assert.equal((await other(`/matches/${id}/orders`,{round:1,order:{type:'hold'}})).status,400);
+    let game=(await call('/matches/'+id)).data;
+    while(game.status==='active'){
+      await call(`/matches/${id}/orders`,{round:game.round,order:{type:'hold'}});
+      game=(await call('/matches/'+id)).data;
+    }
+    for(let i=0;i<3;i++)await call('/matches/'+id);
+    const boot=(await call('/bootstrap')).data;
+    assert.equal(boot.campaign.length,1);assert.equal(boot.campaign[0].match_id,id);
+    assert.equal(boot.profile.played,1);assert.ok(boot.campaign[0].moment.length>0);
+    assert.equal((await other('/bootstrap')).data.campaign.length,0);
+    assert.equal((await call('/replays/'+id)).data.verified,true);
+  }finally{await runtime.close();await new Promise<void>(r=>server.close(()=>r()))}
+});
+
+test('declined convoy offers do not count as successful pacts',()=>{
+  assert.equal(matchRecap([{round:1,kind:'pact',actors:[0,1],text:"B did not accept A's convoy pact. Supplies returned."}],0).pacts,0);
 });

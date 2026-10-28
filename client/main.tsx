@@ -4,7 +4,7 @@ const LazyWorld=lazy(()=>import('./World').then(m=>({default:m.World})));
 function World(props:any){const snapshot=JSON.stringify(props.game);const stableGame=useMemo(()=>props.game,[snapshot]);return <Suspense fallback={<div className="world world-loading" role="status">Preparing your tactical world…</div>}><LazyWorld {...props} game={stableGame}/></Suspense>}
 import { Dialog } from "./Dialog";
 import { matchRecap, trainingMove } from "../shared/experience";
-import { shareBattle, downloadBattleCard } from "./share";
+import { shareBattle, downloadBattleCard, shareRankings, downloadRankingsCard } from "./share";
 import { chooseWallet } from "./wallet";
 import {
   createGame,
@@ -62,7 +62,7 @@ function App() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [clock, setClock] = useState(Date.now()),
-    [board, setBoard] = useState<any[]>([]),
+    [board, setBoard] = useState<any>({entries:[],me:null,total:0,since:0,loading:true,error:false}),
     [replay, setReplay] = useState<any>(),
     [step, setStep] = useState(0),
     [room, setRoom] = useState(""),
@@ -81,6 +81,10 @@ function App() {
     setBoot(b);
     setProfile(b.profile);
     return b;
+  };
+  const loadBoard = async () => {
+    try { setBoard({...await api("/leaderboard"),loading:false,error:false}); }
+    catch(e) { setBoard((old:any)=>({...old,loading:false,error:true})); throw e; }
   };
   const syncLivingCaptain = (p = boot?.profile) => {
     if (!p?.wallet || !p?.onboarded) {livingFrame.current?.contentWindow?.postMessage({type:"OUTPOST_CLEAR_CAPTAIN"},location.origin);return;}
@@ -105,12 +109,13 @@ function App() {
       const s = await api("/session", {});
       csrf = s.csrf;
       await refresh();
+      loadBoard().catch(()=>{});
       const params = new URLSearchParams(location.search);
       if (params.get("replay")) {
         const r = await api("/replays/" + params.get("replay"));
         setReplay(r);
         setPage("replay");
-      }
+      } else if (location.pathname === '/rankings') setPage('warroom');
       if (params.get("room")) { setRoom(params.get("room")!.toUpperCase());setPage("tactics"); }
     });
   }, []);
@@ -151,7 +156,7 @@ function App() {
     return () => window.removeEventListener('outpost:wallet-change',changed);
   }, []);
   useEffect(()=>{
-    if(game?.status==='finished' && completedRefresh.current!==game.id){completedRefresh.current=game.id;refresh().catch(()=>{});}
+    if(game?.status==='finished' && completedRefresh.current!==game.id){completedRefresh.current=game.id;refresh().then(loadBoard).catch(()=>{});}
   },[game?.status,game?.id]);
   const start = (mode: string) =>
     run(async () => {
@@ -165,7 +170,7 @@ function App() {
     });
   async function connect(forPurchase = false) {
     setWalletStage("1 / 3 · Choose your wallet");
-    const walletProvider = await chooseWallet(boot.chain,boot.release?.walletConnectProjectId || "",forPurchase?activeProvider.current:null);
+    const walletProvider = await chooseWallet(forPurchase?activeProvider.current:null);
     activeProvider.current=walletProvider;
     setWalletStage("2 / 3 · Confirm the network in your wallet");
     const chain = boot.chain;
@@ -206,6 +211,7 @@ function App() {
     });
     csrf = verified.csrf;
     const updated = await refresh();
+    await loadBoard();
     if (verified.restored) {
       setMatch("");
       setGame(null);
@@ -264,6 +270,7 @@ function App() {
       const r = await api("/replays/" + id);
       setReplay(r);
       setStep(0);
+      history.replaceState(null,'','/?replay='+encodeURIComponent(id));
       setPage("replay");
     });
   function share() { return run(async()=>setNotice(await shareBattle(game,matchRecap(game.events,game.you).moment?.text || "Six rounds. Three rivals. Your move."))); }
@@ -271,7 +278,7 @@ function App() {
   if (!boot)
     return (
       <div className="loading">
-        <img src="/mark.svg" />
+        <img src="/hood-rivals-logo.png" alt="Hood Rivals" />
         <h1>Opening the frontier</h1>
         <p>{error || "Preparing your captain and world…"}</p>
         {error && <button onClick={() => location.reload()}>Retry</button>}
@@ -319,13 +326,11 @@ function App() {
           href="/"
           onClick={(e) => {
             e.preventDefault();
+            history.replaceState(null,'','/');
             setPage("observatory");
           }}
         >
-          <img src="/mark.svg" />
-          <span>
-            OUTPOST<span className="subbrand">RIVALS</span>
-          </span>
+          <img src="/hood-rivals-logo.png" alt="Hood Rivals" width="200" height="80" />
         </a>
         <nav>
           {[
@@ -341,8 +346,9 @@ function App() {
               key={id}
               onClick={() => {
                 setPage(id);
+                history.replaceState(null,'',id==='warroom'?'/rankings':'/');
                 if (id === "warroom")
-                  run(async () => setBoard(await api("/leaderboard")));
+                  run(loadBoard);
                 if (id === "captain" || id === "armory") run(refresh);
               }}
             >
@@ -401,10 +407,21 @@ function App() {
               <p>These stats are saved by the game server. The island below runs locally in this browser.</p>
             </section>
           )}
+          <section className="rankings-teaser" aria-label="Seven-day ranked leaderboard">
+            <div className="rankings-teaser-head"><div><span className="eyebrow">THE DAILY CHALLENGE · LAST 7 DAYS</span><h2>Rivals at the top.</h2></div><button onClick={()=>{history.replaceState(null,'','/rankings');setPage('warroom');run(loadBoard)}}>Full standings →</button></div>
+            {board.loading ? <p>Loading standings…</p> : board.error ? <p>Standings unavailable. Try again from Rankings.</p> : board.entries.length ? <div className="rankings-teaser-list">{board.entries.slice(0,3).map((p:any)=><div className="leader row" key={p.rank}><span><b>#{p.rank}</b> {p.name}</span><strong>{p.score} renown</strong><a href={'/?replay='+encodeURIComponent(p.matchId)}>Replay ↗</a></div>)}</div> : <p>No completed ranked matches yet. Be the first captain on the board.</p>}
+            {!board.loading&&!board.error&&<div className="rankings-teaser-foot"><small>{board.total} ranked captains · Best completed score counts · No token rewards</small>{board.me&&<span>Your place: #{board.me.rank} · {board.me.score} renown</span>}</div>}
+          </section>
           {boot.profile.wallet&&!boot.profile.onboarded&&setupLater&&<div className="invite-banner"><span>Your wallet is linked. Give your captain an identity.</span><button onClick={()=>setSetupLater(false)}>Finish captain setup →</button></div>}
+          <section className="campaign-journal" aria-label="Saved campaign journal">
+            <div className="campaign-title"><div><span className="eyebrow">YOUR CAMPAIGN · SERVER SAVED</span><h2>A frontier that remembers.</h2></div><button disabled={busy} onClick={()=>start('solo')}>{boot.campaign?.length?'Start the next chapter →':'Begin your story →'}</button></div>
+            <p>Six rounds leave a record. Revisit your turning points, then face the factions that remember your choices.</p>
+            <div className="campaign-rivals">{Object.entries(boot.profile.rivalMemory||{}).filter(([id])=>Number(id)!==boot.profile.faction).map(([id,value])=><span key={id} style={{borderColor:FACTIONS[Number(id)]?.color}}><b>{FACTIONS[Number(id)]?.name}</b> · {Number(value)<0?'Holds a grudge':Number(value)>0?'Remembers your alliance':'Neutral'} ({Number(value)})</span>)}</div>
+            {boot.campaign?.length ? <div className="campaign-entries">{boot.campaign.map((entry:any)=><article key={entry.match_id}><span className="eyebrow">{entry.won?'VICTORY':'EXPEDITION'} · {entry.score} RENOWN</span><h3>{entry.moment}</h3><time dateTime={new Date(entry.created).toISOString()}>{new Date(entry.created).toLocaleDateString()}</time><button onClick={()=>openReplay(entry.match_id)}>Watch the real replay ↗</button></article>)}</div> : <div className="campaign-empty">Your journal is empty. Complete a solo, friend or ranked match to save its turning point. Practice earns no campaign entry.</div>}
+          </section>
           <div className="world-section-heading"><div><span className="eyebrow">THE LIVING ISLAND</span><h2>Everyone has a reason.</h2></div><span className="simulation-chip">Local simulation · 15 agents</span></div>
           <div className="living-frame">
-            <iframe ref={livingFrame} title="Outpost Rivals living isometric world" src="/observatory.html?embedded=1" onLoad={() => {syncLivingCaptain();livingFrame.current?.contentWindow?.postMessage({type:"OUTPOST_VISIBILITY",visible:page==="observatory"},location.origin)}} />
+            <iframe ref={livingFrame} title="Hood Rivals living isometric world" src="/observatory.html?embedded=1" onLoad={() => {syncLivingCaptain();livingFrame.current?.contentWindow?.postMessage({type:"OUTPOST_VISIBILITY",visible:page==="observatory"},location.origin)}} />
           </div>
           <p className="living-caption">Explore a local simulation: these 15 agents and their PX are not other online players or transferable rewards. Your captain identity and tactical match record are saved separately. The island stays with you between tabs and pauses while you are away. Refreshing the browser starts a new local world.</p>
         </main>
@@ -692,7 +709,7 @@ function App() {
                     const url = URL.createObjectURL(blob),
                       a = document.createElement("a");
                     a.href = url;
-                    a.download = "outpost-replay.json";
+                    a.download = "hood-rivals-replay.json";
                     a.click();
                     URL.revokeObjectURL(url);
                   }}
@@ -982,41 +999,33 @@ function App() {
         </main>
       )}
       {page === "warroom" && (
-        <main className="content">
-          <div className="eyebrow">THE WAR ROOM</div>
-          <h1>Earn your place.</h1>
-          <div className="columns">
+        <main className="content rankings-page" id="main-content">
+          <div className="rankings-hero"><div><div className="eyebrow">THE RANKED FRONTIER · LIVE SERVER RESULTS</div><h1>Every score<br/><em>has a story.</em></h1><p>A public board of completed equal-start matches. Follow any result to its replay and server hash-chain receipt.</p></div><div className="rankings-share-actions"><button disabled={board.loading||board.error} onClick={()=>run(async()=>setNotice(await shareRankings(board)))}>Share public board ↗</button><button disabled={board.loading||board.error} onClick={()=>run(async()=>{await downloadRankingsCard(board);setNotice('PNG saved. Add the public rankings link to your post.')} )}>Save social card ↓</button><small>Share link: {location.origin}/rankings</small></div></div>
+          <div className="rankings-layout">
+            <section className="panel rankings-main">
+              <div className="rankings-teaser-head"><div><span className="eyebrow">SEVEN-DAY STANDINGS</span><h2>{board.loading||board.error?'Ranked captains':`${board.total} ranked captains`}</h2></div><button disabled={busy} onClick={()=>run(loadBoard)}>Refresh ↻</button></div>
+              {board.loading ? <p>Loading standings…</p> : board.error ? <p>Standings unavailable. Refresh to retry.</p> : board.entries.length ? <><div className="rankings-podium">{board.entries.slice(0,3).map((p:any)=><article className={'rankings-tile rank-'+p.rank} key={p.rank}><span className="rankings-place">#{p.rank}</span><span className="rankings-pixel-tower" aria-hidden="true">▟▙</span><h3>{p.name}</h3><strong>{p.score} <small>RENOWN</small></strong><time dateTime={new Date(p.created).toISOString()}>{new Date(p.created).toLocaleDateString(undefined,{day:'numeric',month:'short',timeZone:'UTC'})} UTC</time><a href={'/?replay='+encodeURIComponent(p.matchId)}>Open match replay ↗</a></article>)}</div><div className="rankings-list">{board.entries.slice(3).map((p:any)=><div className="rankings-line" key={p.rank}><span className="rankings-number">#{p.rank}</span><b>{p.name}</b><span>{p.score} Renown</span><time dateTime={new Date(p.created).toISOString()}>{new Date(p.created).toLocaleDateString(undefined,{day:'numeric',month:'short',timeZone:'UTC'})} UTC</time><a href={'/?replay='+encodeURIComponent(p.matchId)}>Replay ↗</a></div>)}</div></> : <div className="rankings-empty"><b>The board is waiting for its first captain.</b><p>Finish a ranked match to set the opening score.</p></div>}
+              {!board.loading&&!board.error&&board.me && <p className="rankings-me">Your place: #{board.me.rank} · {board.me.score} Renown · {board.me.attempts} attempt{board.me.attempts===1?'':'s'} <a href={'/?replay='+encodeURIComponent(board.me.matchId)}>Open your best match ↗</a></p>}
+              <p className="rankings-proof">Server-recorded standings. Replays check a server hash chain; neither the scores nor receipts are independently verified or onchain. No cash or token rewards.</p>
+            </section>
+            <aside className="rankings-aside">
             <section className="panel">
               <h2>Daily equal-start challenge</h2>
               <p>
                 Same map seed. Same faction and stance. Neutral market costs.
-                One ranked attempt per account each UTC day. Best score in the
+                One ranked attempt per linked wallet each UTC day. Best score in the
                 last seven days ranks.
               </p>
               <button
                 className="primary"
                 disabled={busy}
-                onClick={() => start("weekly")}
+                onClick={() => !boot.profile.wallet ? run(connect) : !boot.profile.onboarded ? (setPage('observatory'),setSetupLater(false)) : start("weekly")}
               >
-                Begin today’s attempt →
+                {!boot.profile.wallet ? 'Link wallet for ranked →' : !boot.profile.onboarded ? 'Create your captain →' : 'Begin today’s attempt →'}
               </button>
               <p className="hint">
-                No cash or token rewards. Account limits are not proof of unique
-                humans.
+                No cash or token rewards. Wallet limits are not proof of unique humans.
               </p>
-              <h3>Seven-day standings</h3>
-              {board.length ? (
-                board.map((p, i) => (
-                  <div className="leader row" key={i}>
-                    <span>
-                      {String(i + 1).padStart(2, "0")} · {p.name}
-                    </span>
-                    <b>{p.score} renown</b>
-                  </div>
-                ))
-              ) : (
-                <p>No completed ranked attempts yet. Set the first score.</p>
-              )}
             </section>
             <section className="panel">
               <h2>Your field archive</h2>
@@ -1042,6 +1051,7 @@ function App() {
                 <p>Your finished games will appear here.</p>
               )}
             </section>
+            </aside>
           </div>
         </main>
       )}
@@ -1242,7 +1252,7 @@ function App() {
         </main>
       )}
       <footer>
-        <span>OUTPOST RIVALS</span>
+        <span>HOOD RIVALS</span>
         <span>A small world. A long memory. · v{boot.release?.version||'1.3.0'}</span>
         <button onClick={() => setPage("economy")}>Read the economy ↗</button>
       </footer>

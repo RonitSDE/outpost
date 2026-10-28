@@ -10,7 +10,7 @@ Build with Node24. Use `npm ci` and the committed lockfile. For Docker, copy `.e
 
 Run exactly **one API process/replica**. SQLite WAL and its volume must be persistent. Multiple Node processes could run overlapping timers and are unsupported here. The reverse proxy should provide distributed/public rate limiting; the service's per-IP limit is an additional local bound. It intentionally does not trust arbitrary forwarded IP headers.
 
-Do not expose `.env`, SQLite, backups, launch preparations or deployer keys. Dist is the only served static directory. The runtime user is non-root. The Docker image retains build/test packages for convenient developer operations; a hardened production supply-chain image can strip them after compiling runtime TS to JS. Never bake secrets into the image.
+Do not expose `.env`, SQLite, backups, launch preparations or deployer keys. Dist is the only served static directory. The runtime user is non-root. The Docker runtime layer prunes development dependencies; production still executes TS through `tsx`. Never bake secrets into the image.
 
 ## Keys and roles
 
@@ -38,7 +38,7 @@ Run `npm run backup` with the app environment. Copy the produced snapshot to enc
 - Validate o1 launch preparation against current live API, review chain/address/supply/fees and sign fresh unexpired plan separately.
 - Mainnet contract review/audit, token-admin inspection, multisig roles, private RPC and alerting.
 - Mainnet preflight, tiny purchase, explorer receipt, entitlement, accounting reconciliation.
-- Privacy/terms, refund policy, trademark clearance for Outpost Rivals/RIVAL, jurisdiction-specific token and payment review.
+- Privacy/terms, refund policy, trademark clearance for Hood Rivals/RIVAL, jurisdiction-specific token and payment review.
 - Keep checkout disabled if any payment integration is unverified; gameplay can launch separately.
 
 ## Sources used for integration design
@@ -54,4 +54,4 @@ These external interfaces can change. Run preflight and review live o1 configura
 
 ## v1.3 additions
 
-Read `FINAL_HANDOFF.md`. Back up SQLite before the additive rival_memory migration. Set `BUILD_SHA`, optional `WALLETCONNECT_PROJECT_ID`, and the exact `TRUST_PROXY_HOPS` for your host (default0). Use one replica with durable storage. Authentication limits are account scoped after IP-limited session issuance; this does not imply production load or Sybil resistance.
+Read `FINAL_HANDOFF.md`. Back up SQLite before the additive rival_memory migration. Set `BUILD_SHA`, and the exact `TRUST_PROXY_HOPS` for your host (default0). Use one replica with durable storage. Authentication limits are account scoped after IP-limited session issuance; this does not imply production load or Sybil resistance.

@@ -4,7 +4,7 @@ The landing page is the autonomous isometric island. Anyone can watch it without
 
 ## First connection
 
-1. Player chooses **Connect wallet**, then selects an EIP-6963 discovered wallet, injected fallback or configured WalletConnect QR.
+1. Player chooses **Connect wallet**, then selects an EIP-6963 discovered wallet, injected fallback or mobile wallet in-app browser.
 2. Wallet switches to the configured Robinhood Chain network (testnet 46630 by default). The player signs an EIP-191 challenge bound to this app's host, chain ID, address, nonce and expiry. This is an account-link signature, not a transaction or allowance.
 3. Server verifies the signature once, creates or restores a wallet-linked session, and sends an HttpOnly cookie. A new wallet sees a three-step captain setup: name, outpost (Emberhold / Tidewatch / Sunreach), and tactical stance. POST `/api/onboarding` can succeed only once per wallet-linked account. The saved choice can later be edited through the profile page.
 4. The landing page shows the saved captain record: tactical matches, wins, nontransferable XP and owned cosmetics. A same-origin message projects the saved name and faction into the local island. The selected island captain is a visualization, not a persistent agent or owned onchain object.
@@ -29,4 +29,4 @@ The source compiles and local EVM receipt tests pass. A real Robinhood wallet pu
 
 ## v1.3 configuration
 
-Set `WALLETCONNECT_PROJECT_ID` to enable QR pairing and allowlist the public origin with the provider. Without it the picker explains browser-wallet availability. Cancel returns to free play. Network/account changes invalidate the displayed payment context. Real QR relay pairing and real-phone wallet behavior remain deployment acceptance tests.
+QR pairing is unavailable in v1.5.1. Use an EIP-6963 browser extension or open the site in a mobile wallet app browser. Cancel returns to free play. Network/account changes invalidate the displayed payment context. Test a real mobile wallet before release.

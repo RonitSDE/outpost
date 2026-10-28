@@ -31,3 +31,11 @@ if (![4663, 46630].includes(config.chainId))
 if (config.production && !config.origin.startsWith("https://"))
   throw Error("Production APP_ORIGIN must use HTTPS");
 export type Config = typeof config;
+
+if (!Number.isInteger(config.confirmations) || config.confirmations < 1 || config.confirmations > 100)
+  throw Error("CONFIRMATIONS must be an integer from 1 to 100");
+for (const decimals of [config.tokenDecimals, config.stableDecimals])
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) throw Error("Invalid token decimals");
+const appURL = new URL(config.origin);
+if (appURL.origin !== config.origin || appURL.username || appURL.password)
+  throw Error("APP_ORIGIN must be an exact origin without a path or credentials");

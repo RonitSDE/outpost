@@ -24,6 +24,6 @@ export function matchRecap(events: GameEvent[], you: number) {
     moment: moment ? {round:moment.round,kind:moment.kind,text:moment.text} : null,
     captures: relevant.filter(e=>e.kind==='capture'&&e.actors[0]===you).length,
     clashes: relevant.filter(e=>e.kind==='battle').length,
-    pacts: new Set(relevant.filter(e=>e.kind==='pact').map(e=>`${e.round}:${[...e.actors].sort().join(',')}`)).size,
+    pacts: new Set(relevant.filter(e=>e.kind==='pact'&&!e.text.includes('did not accept')).map(e=>`${e.round}:${[...e.actors].sort().join(',')}`)).size,
   };
 }

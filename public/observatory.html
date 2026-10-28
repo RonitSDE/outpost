@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Outpost Rivals</title>
+<title>Hood Rivals</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -186,11 +186,7 @@ body{
   letter-spacing:.14em;text-shadow:0 2px 14px rgba(0,0,0,.32);
 }
 .brand .crest{
-  display:grid;place-items:center;width:42px;height:42px;flex:none;
-  border:1px solid #d5bc80;border-radius:11px;
-  background:linear-gradient(145deg,#4b5d4b,#192d2b 72%);
-  box-shadow:inset 0 1px rgba(255,255,255,.26),0 0 24px rgba(245,195,113,.12);
-  color:#fce2a2;font-size:25px;letter-spacing:0;transform:rotate(-3deg);
+  display:block;width:178px;height:71px;object-fit:contain;flex:none;
 }
 .brand .brand-name span{color:#f6cb79}
 .brand small{
@@ -345,6 +341,13 @@ body{
   .banner{top:56px}
   .world-stamp{left:330px}
 }
+/* Give the new wordmark, season strip and world controls their own rows. */
+.top{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:9px 18px;align-items:center}
+.top .brand{grid-column:1}
+.top .signal{grid-column:2;justify-self:start}
+.top .chipbar{grid-column:1/-1;width:100%;justify-content:flex-start}
+.top .ctrls{grid-column:1/-1;width:100%;justify-content:flex-start}
+@media(max-width:600px){.top{grid-template-columns:1fr}.top .brand,.top .signal,.top .chipbar,.top .ctrls{grid-column:1}}
 @media(max-width:1180px){
   .right{width:230px}
   .feed{width:min(480px,calc(100% - 334px - 20px));bottom:166px}
@@ -353,7 +356,7 @@ body{
   body{padding:8px 8px 18px}
   .top{padding:9px;gap:9px}
   .brand{min-width:auto;font-size:15px}
-  .brand .crest{height:35px;width:35px;font-size:20px}
+  .brand .crest{height:62px;width:155px}
   .ctrls{width:100%;margin-left:0;order:2}
   .ctrls button{min-height:32px}
   .chipbar{order:3}
@@ -444,7 +447,7 @@ body.embedded .stage{height:100%;border:0;border-radius:0}
 <body>
 <div class="app">
   <div class="top">
-    <div class="brand"><span class="crest" aria-hidden="true">⚑</span><span class="brand-name">OUTPOST <span>RIVALS</span><small>THE WORLD KEEPS MOVING</small></span></div>
+    <div class="brand"><img class="crest" src="/hood-rivals-logo.png" alt="Hood Rivals"><span class="brand-name"><small>THE WORLD KEEPS MOVING</small></span></div>
     <div class="tchip signal" title="This preview runs entirely in your browser"><span class="signal-dot"></span>LOCAL WORLD SIMULATION</div>
     <div class="chipbar" id="chipbar"></div>
     <div class="ctrls" role="group" aria-label="Simulation controls">

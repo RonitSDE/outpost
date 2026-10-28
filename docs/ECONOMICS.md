@@ -8,7 +8,7 @@ Cosmetic prices start at 4/6/8/12 USDG. RIVAL quotes use the operator's explicit
 
 ## Canonical launch
 
-Planned token: Outpost Rivals / RIVAL. Robinhood Chain mainnet 4663, o1 Standard with USDG quote asset. The o1 Standard launch model uses a fixed 1 billion token supply into the launch liquidity pool. This design does not reserve a team, treasury, rewards or airdrop allocation. Do not publish an allocation pie chart that contradicts the actual launch. Read current configuration and the prepared plan; if the launch product changes, stop and revise the documents before signing.
+Planned token: Hood Rivals / RIVAL. Robinhood Chain mainnet 4663, o1 Standard with USDG quote asset. The o1 Standard launch model uses a fixed 1 billion token supply into the launch liquidity pool. This design does not reserve a team, treasury, rewards or airdrop allocation. Do not publish an allocation pie chart that contradicts the actual launch. Read current configuration and the prepared plan; if the launch product changes, stop and revise the documents before signing.
 
 No developer buy is included in preparation. Creator trading-fee income, if paid by the launchpad, is a separate contingent revenue source; the game does not depend on that income. Opening launch fees can differ drastically from normal trading fees. Review current o1 disclosure and avoid implying a flat fee during the opening period.
 
